@@ -24,11 +24,11 @@ jobs:
           echo ::set-output name=missing-package::$MISSING_PACKAGE_NAME
 
       - name: Post error message
-        if: steps.get-package.outputs.missing-package == 1
+        if: steps.get-package.outputs.missing-package == '1'
         uses: actions/github-script@v5
         with:
           script: |
-            github.issues.createComment({
+            github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -36,43 +36,43 @@ jobs:
             })
 
       - name: Set up Python
-        if: steps.get-package.outputs.missing-package != 1
+        if: steps.get-package.outputs.missing-package != '1'
         uses: actions/setup-python@v2
         with:
           python-version: '3.x'
 
       - name: Install package
-        if: steps.get-package.outputs.missing-package != 1
+        if: steps.get-package.outputs.missing-package != '1'
         run: |
           python -m pip install --upgrade pip
           pip install $PACKAGE_NAME
 
       - name: Create and zip file
-        if: steps.get-package.outputs.missing-package != 1
+        if: steps.get-package.outputs.missing-package != '1'
         run: |
           touch file.txt
           zip file.zip file.txt
 
       - name: Upload the zip file
-        if: steps.get-package.outputs.missing-package != 1
+        if: steps.get-package.outputs.missing-package != '1'
         uses: actions/upload-artifact@v2
         with:
           name: file.zip
           path: ./file.zip
 
       - name: Post file
-        if: steps.get-package.outputs.missing-package != 1
+        if: steps.get-package.outputs.missing-package != '1'
         id: post-file
         run: |
           FILE_URL=$(gh run download ${{ github.run_id }} -n file.zip)
           echo ::set-output name=file-url::$FILE_URL
   
       - name: Reply to issue with file URL
-        if: steps.get-package.outputs.missing-package != 1
+        if: steps.get-package.outputs.missing-package != '1'
         uses: actions/github-script@v5
         with:
           script: |
-            github.issues.createComment({
+            github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
