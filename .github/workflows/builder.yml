@@ -1,0 +1,79 @@
+name: Issue Workflow
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  process-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        
+      - name: Get package name
+        id: get-package
+        run: |
+          PACKAGE_NAME=$(echo '${{ github.event.issue.body }}' | grep -oP 'package: \K\w+')
+          if [ -z "$PACKAGE_NAME" ]; then
+            echo "PACKAGE_NAME not found"
+            MISSING_PACKAGE_NAME=1
+          else
+            echo "PACKAGE_NAME=$PACKAGE_NAME" >> $GITHUB_ENV
+          fi
+          echo ::set-output name=missing-package::$MISSING_PACKAGE_NAME
+
+      - name: Post error message
+        if: steps.get-package.outputs.missing-package == 1
+        uses: actions/github-script@v5
+        with:
+          script: |
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Error: Package name could not be determined. Please specify a package in the issue body using the format `package: PACKAGE_NAME`.'
+            })
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install package
+        run: |
+          if [ -n "$PACKAGE_NAME" ]; then
+            python -m pip install --upgrade pip
+            pip install $PACKAGE_NAME
+          fi
+
+      - name: Create and zip file
+        run: |
+          if [ -n "$PACKAGE_NAME" ]; then
+            touch file.txt
+            zip file.zip file.txt
+          fi
+
+      - name: Upload the zip file
+        uses: actions/upload-artifact@v2
+        with:
+          name: file.zip
+          path: ./file.zip
+
+      - name: Post file
+        if: steps.get-package.outputs.missing-package != 1
+        id: post-file
+        run: |
+          FILE_URL=$(gh run download ${{ github.run_id }} -n file.zip)
+          echo ::set-output name=file-url::$FILE_URL
+  
+      - name: Reply to issue with file URL
+        if: steps.get-package.outputs.missing-package != 1
+        uses: actions/github-script@v5
+        with:
+          script: |
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `[Download the file](${{ steps.post-file.outputs.file-url }})`
+            })
